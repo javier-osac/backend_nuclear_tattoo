@@ -1,4 +1,5 @@
 const pool = require('../config/db'); //conexion a la base de datos
+const fs = require('fs');
 const path = require('path');
 
 // Subir imagen
@@ -36,13 +37,28 @@ const deleteImage = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await pool.query('DELETE FROM gallery WHERE gallery_id = $1 RETURNING *', [id]);
+    // Obtener la información de la imagen desde la base de datos antes de eliminarla
+    const result = await pool.query('SELECT image_url FROM gallery WHERE gallery_id = $1', [id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Imagen no encontrada' });
     }
 
-    res.json({ success: true, message: 'Imagen eliminada' });
+    const imageUrl = result.rows[0].image_url;
+    const imagePath = path.join(__dirname, '..', imageUrl); // Ruta completa al archivo
+
+    // Eliminar la entrada de la base de datos
+    await pool.query('DELETE FROM gallery WHERE gallery_id = $1', [id]);
+
+    // Eliminar el archivo físico del sistema de archivos
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Error al eliminar el archivo:', err);
+        return res.status(500).json({ success: false, message: 'Error al eliminar archivo del servidor' });
+      }
+
+      res.json({ success: true, message: 'Imagen eliminada correctamente' });
+    });
   } catch (error) {
     console.error('Error al eliminar imagen:', error);
     res.status(500).json({ success: false, message: 'Error en el servidor' });

@@ -9,5 +9,16 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true); // Aceptar el archivo
+    } else {
+      cb(new Error('Tipo de archivo no permitido')); // Rechazar el archivo
+    }
+  },
+});
+
 module.exports = upload;

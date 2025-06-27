@@ -1,18 +1,49 @@
 const pool = require('../config/db');
 
-//logica para obtener citas
-
+// Lógica para obtener citas
 const getAppointments = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM appointments');
+    const result = await pool.query(
+      'SELECT * FROM appointments ORDER BY creation_date_time DESC'
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error al obtener citas:', err);
     res.status(500).json({ error: 'Error al obtener citas' });
   }
-};  
+};
 
-//logica para crear citas
+const getAppointmentsByUser = async (req, res) => {
+  const { id } = req.params; // Obtener el id del usuario desde la URL
+
+  try {
+    let result;
+
+    if (id === '1') {
+      // Si el usuario es el administrador (id = 1), devolver todas las citas
+      result = await pool.query(
+        'SELECT * FROM appointments ORDER BY start_date_time ASC'
+      );
+    } else {
+      // Devolver solo las citas asociadas al usuario
+      result = await pool.query(
+        'SELECT * FROM appointments WHERE id_user = $1 ORDER BY start_date_time ASC',
+        [id]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron citas.' });
+    }
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error al obtener citas segun usuario:', err);
+    res.status(500).json({ error: 'Error al obtener citas citas segun usuario' });
+  }
+};
+
+// Lógica para crear citas
 const createAppointment = async (req, res) => {
   const {
     id_user,
@@ -51,8 +82,7 @@ const createAppointment = async (req, res) => {
   }
 };
 
-//logica para eliminar citas
-
+// Lógica para eliminar citas
 const deleteAppointment = async (req, res) => {
   const { id } = req.params;
   try {
@@ -69,8 +99,7 @@ const deleteAppointment = async (req, res) => {
   }
 };
 
-//logica para actualizar citas
-
+// Lógica para actualizar citas
 const updateAppointment = async (req, res) => {
   console.log('PUT /appointments/:id recibido:', req.params.id, req.body);
 
@@ -81,7 +110,7 @@ const updateAppointment = async (req, res) => {
     service_type,
     status,
     appointment_location,
-    price, 
+    price,
     start_date_time,
     end_date_time,
     creation_date_time,
@@ -151,10 +180,39 @@ const updateAppointment = async (req, res) => {
   }
 };
 
-module.exports = {
-  getAppointments,
-  createAppointment,
-  deleteAppointment,
-  updateAppointment, 
+// Lógica para actualizar solo el estado a Confirmada
+
+const patchAppointment= async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ message: 'El estado es requerido' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE appointments SET status = $1 WHERE id_appointment = $2 RETURNING *',
+      [status, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Cita no encontrada' });
+    }
+
+    res.json({ message: 'Estado actualizado correctamente', appointment: result.rows[0] });
+  } catch (err) {
+    console.error('Error al actualizar el estado:', err);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
 };
 
+
+module.exports = {
+  getAppointments,
+  getAppointmentsByUser,
+  createAppointment,
+  deleteAppointment,
+  updateAppointment,
+  patchAppointment
+};
