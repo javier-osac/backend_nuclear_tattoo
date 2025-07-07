@@ -97,11 +97,42 @@ module.exports = {
 
     deleteTransaction: async (req, res) => {
         const { id } = req.params;
+
         try {
-            await pool.query('DELETE FROM transactions WHERE id_transaction = $1', [id]); // Cambiar db por pool
-            res.json({ message: 'Transaction deleted successfully' });
+            // Primero obtener el nombre del archivo asociado a la transacción
+            const result = await pool.query(
+                'SELECT receipt FROM transactions WHERE id_transaction = $1',
+                [id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ error: 'Transacción no encontrada' });
+            }
+
+            const receiptPath = result.rows[0].receipt;
+
+            // Eliminar el archivo si existe
+            if (receiptPath) {
+                const fullFilePath = path.join(__dirname, '..', receiptPath.replace('/uploads/', 'uploads/'));
+
+                if (fs.existsSync(fullFilePath)) {
+                    fs.unlink(fullFilePath, (err) => {
+                        if (err) {
+                            console.error(`Error al eliminar archivo: ${fullFilePath}`, err);
+                        }
+                    });
+                } else {
+                    console.warn(`Archivo no encontrado: ${fullFilePath}`);
+                }
+            }
+
+            // Luego eliminar la transacción de la base de datos
+            await pool.query('DELETE FROM transactions WHERE id_transaction = $1', [id]);
+
+            res.json({ message: 'Transacción y archivo eliminados correctamente' });
+
         } catch (err) {
-            console.error(err.message); // Para depuración
+            console.error(err.message);
             res.status(500).json({ error: err.message });
         }
     }
